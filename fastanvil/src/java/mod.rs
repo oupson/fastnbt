@@ -42,7 +42,7 @@ pub struct JavaChunk {
 
 impl Chunk for JavaChunk {
     fn status(&self) -> String {
-        self.level.status.clone()
+        self.level.status.to_owned()
     }
 
     fn surface_height(&self, x: usize, z: usize, mode: HeightMode) -> isize {
@@ -124,8 +124,6 @@ pub struct Level {
 
     pub heightmaps: Option<Heightmaps>,
 
-    pub tile_entities: Option<Vec<Entity>>,
-
     // Status of the chunk. Typically anything except 'full' means the chunk
     // hasn't been fully generated yet. We use this to skip chunks on map edges
     // that haven't been fully generated yet.
@@ -133,35 +131,6 @@ pub struct Level {
 
     #[serde(skip)]
     lazy_heightmap: RefCell<Option<[i16; 256]>>,
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "PascalCase")]
-pub struct Entity {
-    #[serde(rename = "id")]
-    id: String,
-    #[serde(default)]
-    keep_packed: bool,
-    custom_name: Option<String>,
-    items: Option<Vec<Item>>,
-
-    #[serde(rename = "x")]
-    x: i32,
-
-    #[serde(rename = "y")]
-    y: i32,
-
-    #[serde(rename = "z")]
-    z: i32,
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "PascalCase")]
-pub struct Item {
-    pub count: i8,
-    pub slot: i8,
-    #[serde(rename = "id")]
-    pub id: Option<String>,
 }
 
 /// Various heightmaps kept up to date by Minecraft.

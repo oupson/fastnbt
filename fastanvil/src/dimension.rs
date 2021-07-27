@@ -1,4 +1,7 @@
-use std::{cell::RefCell, collections::HashMap, error::Error, fmt::Display, ops::Range, rc::Rc};
+use std::{
+    cell::RefCell, collections::HashMap, error::Error, fmt::Display, marker::PhantomData,
+    ops::Range, rc::Rc,
+};
 
 use crate::{biome::Biome, Block};
 
@@ -61,30 +64,35 @@ impl Display for LoaderError {
 /// An example implementation could be loading a region file from a local disk,
 /// or perhaps a WASM version loading from a file buffer in the browser.
 pub trait RegionLoader<C: Chunk> {
+    type RegionType: Region<C>;
     /// Get a particular region. Returns None if region does not exist.
-    fn region(&self, x: RCoord, z: RCoord) -> Option<Box<dyn Region<C>>>;
+    fn region(&self, x: RCoord, z: RCoord) -> Option<Self::RegionType>;
 
     /// List the regions that this loader can return. Implmentations need to
     /// provide this so that callers can efficiently find regions to process.
     fn list(&self) -> LoaderResult<Vec<(RCoord, RCoord)>>;
 }
 
+type RegionsMap<R> = RefCell<HashMap<(RCoord, RCoord), Rc<R>>>;
+
 /// Dimension provides a cache on top of a RegionLoader.
-pub struct Dimension<C: Chunk> {
-    loader: Box<dyn RegionLoader<C>>,
-    regions: RefCell<HashMap<(RCoord, RCoord), Rc<dyn Region<C>>>>,
+pub struct Dimension<C: Chunk, R: RegionLoader<C>> {
+    loader: R,
+    regions: RegionsMap<R::RegionType>,
+    p: PhantomData<C>,
 }
 
-impl<C: Chunk> Dimension<C> {
-    pub fn new(loader: Box<dyn RegionLoader<C>>) -> Self {
+impl<C: Chunk, R: RegionLoader<C>> Dimension<C, R> {
+    pub fn new(loader: R) -> Self {
         Self {
             loader,
             regions: Default::default(),
+            p: PhantomData,
         }
     }
 
     /// Get a region, maybe from Dimension's internal cache.
-    pub fn region(&self, x: RCoord, z: RCoord) -> Option<Rc<dyn Region<C>>> {
+    pub fn region(&self, x: RCoord, z: RCoord) -> Option<Rc<R::RegionType>> {
         let mut cache = self.regions.borrow_mut();
 
         cache.get(&(x, z)).map(|r| Rc::clone(r)).or_else(|| {
@@ -112,8 +120,9 @@ mod test {
     struct DummyLoader<C: Chunk>(PhantomData<C>);
 
     impl<C: Chunk + 'static> RegionLoader<C> for DummyLoader<C> {
-        fn region(&self, _x: RCoord, _z: RCoord) -> Option<Box<dyn Region<C>>> {
-            Some(Box::new(DummyRegion::<C>(PhantomData)))
+        type RegionType = DummyRegion<C>;
+        fn region(&self, _x: RCoord, _z: RCoord) -> Option<Self::RegionType> {
+            Some(DummyRegion::<C>(PhantomData))
         }
 
         fn list(&self) -> LoaderResult<Vec<(RCoord, RCoord)>> {

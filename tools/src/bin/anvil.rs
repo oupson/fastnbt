@@ -7,7 +7,6 @@ use fastanvil::{Dimension, RenderedPalette};
 
 use fastanvil::RegionFileLoader;
 use flate2::read::GzDecoder;
-use image;
 use log::{error, info};
 use rayon::prelude::*;
 use std::path::{Path, PathBuf};
@@ -15,14 +14,14 @@ use std::path::{Path, PathBuf};
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 fn parse_coord(coord: &str) -> Option<(isize, isize)> {
-    let mut s = coord.split(",");
+    let mut s = coord.split(',');
     let x: isize = s.next()?.parse().ok()?;
     let z: isize = s.next()?.parse().ok()?;
     Some((x, z))
 }
 
 fn auto_size(coords: &[(RCoord, RCoord)]) -> Option<Rectangle> {
-    if coords.len() == 0 {
+    if coords.is_empty() {
         return None;
     }
 
@@ -45,9 +44,9 @@ fn auto_size(coords: &[(RCoord, RCoord)]) -> Option<Rectangle> {
 
 fn make_bounds(size: (isize, isize), off: (isize, isize)) -> Rectangle {
     Rectangle {
-        xmin: RCoord(off.0 - (size.0 + 0) / 2), // size + 1 makes sure that a size of 1,1
+        xmin: RCoord(off.0 - (size.0) / 2), // size + 1 makes sure that a size of 1,1
         xmax: RCoord(off.0 + (size.0 + 1) / 2), // produces bounds of size 1,1 rather than
-        zmin: RCoord(off.1 - (size.1 + 0) / 2), // the 0,0 you would get without it.
+        zmin: RCoord(off.1 - (size.1) / 2), // the 0,0 you would get without it.
         zmax: RCoord(off.1 + (size.1 + 1) / 2),
     }
 }
@@ -125,7 +124,7 @@ fn render(args: &ArgMatches) -> Result<()> {
         _ => "region",
     };
 
-    let loader = RegionFileLoader::<JavaChunk>::new(world.join(subpath));
+    let loader: RegionFileLoader<JavaChunk> = RegionFileLoader::new(world.join(subpath));
 
     let coords = loader.list()?;
 
@@ -150,7 +149,7 @@ fn render(args: &ArgMatches) -> Result<()> {
         .into_par_iter()
         .filter_map(|coord| {
             let loader = RegionFileLoader::<JavaChunk>::new(world.join(subpath));
-            let dimension = Dimension::new(Box::new(loader));
+            let dimension = Dimension::new(loader);
 
             let (x, z) = coord;
 
@@ -216,9 +215,9 @@ fn tiles(args: &ArgMatches) -> Result<()> {
     // don't care if dir already exists.
     std::fs::DirBuilder::new().create(out).unwrap_or_default();
 
-    let loader = RegionFileLoader::<JavaChunk>::new(world.join(subpath));
+    let loader: RegionFileLoader<JavaChunk> = RegionFileLoader::new(world.join(subpath));
 
-    let coords = loader.list()?;
+    let coords = &loader.list()?;
 
     let bounds = match (args.value_of("size"), args.value_of("offset")) {
         (Some(size), Some(offset)) => {
@@ -240,10 +239,10 @@ fn tiles(args: &ArgMatches) -> Result<()> {
     let regions_processed = coords
         .into_par_iter()
         .map(|coord| {
-            let loader = RegionFileLoader::<JavaChunk>::new(world.join(subpath));
-            let dimension = Dimension::new(Box::new(loader));
+            let loader: RegionFileLoader<JavaChunk> = RegionFileLoader::new(world.join(subpath));
+            let dimension = Dimension::new(loader);
 
-            let (x, z) = coord;
+            let (x, z) = *coord;
 
             if x < x_range.end && x >= x_range.start && z < z_range.end && z >= z_range.start {
                 let drawer = TopShadeRenderer::new(&pal, height_mode);
@@ -277,8 +276,6 @@ fn tiles(args: &ArgMatches) -> Result<()> {
 
             img.save(format!("{}/{}.{}.png", out, region.x.0, region.z.0))
                 .unwrap();
-
-            ()
         })
         .count();
 
